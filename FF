@@ -1,0 +1,86 @@
+pip install requests Flask
+import requests
+from flask import Flask, request, render_template, redirect, url_for
+from werkzeug.utils import secure_filename
+import os
+
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
+
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return redirect(request.url)
+    file = request.files['file']
+    if file.filename == '':
+        return redirect(request.url)
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        return redirect(url_for('uploaded_file', filename=filename))
+    return redirect(request.url)
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return render_template('uploaded.html', filename=filename)
+
+def get_fantasy_data():
+    url = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard'
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return None
+
+@app.route('/fantasy-data')
+def fantasy_data():
+    data = get_fantasy_data()
+    if data:
+        return data
+    else:
+        return 'Failed to retrieve data', 500
+
+if __name__ == '__main__':
+    app.run(debug=True)
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Fantasy Football</title>
+  </head>
+  <body>
+    <h1>Upload Player Picture</h1>
+    <form method="post" enctype="multipart/form-data" action="/upload">
+      <input type="file" name="file">
+      <input type="submit" value="Upload">
+    </form>
+    <h1>Fantasy Data</h1>
+    <a href="/fantasy-data">Get Fantasy Data</a>
+  </body>
+</html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Uploaded</title>
+  </head>
+  <body>
+    <h1>File Uploaded</h1>
+    <img src="{{ url_for('uploaded_file', filename=filename) }}" alt="Player Picture">
+    <a href="/">Go back</a>
+  </body>
+</html>
+python app.py
